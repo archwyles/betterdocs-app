@@ -18,6 +18,8 @@ interface AuthContextType {
   showAuthModal: boolean;
   setShowAuthModal: (show: boolean) => void;
   requireAuth: boolean;
+  handleUnauthorizedAccess: (callback?: () => void) => void;
+  handleSuccessfulAuth: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [requireAuth, setRequireAuth] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRequireAuth(true);
       setShowAuthModal(true);
     } else if (hasValidSession && isAuthRoute) {
-      router.push('/');
+      router.push("/");
       setShowAuthModal(false);
       setRequireAuth(false);
     } else {
@@ -131,6 +134,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleUnauthorizedAccess = (callback?: () => void) => {
+    setShowAuthModal(true);
+    setRequireAuth(true);
+    if (callback) {
+      setPendingAction(() => callback);
+    }
+  };
+
+  const handleSuccessfulAuth = () => {
+    setShowAuthModal(false);
+    setRequireAuth(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
@@ -140,8 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) throw signInError;
-
-      router.push("/");
+      handleSuccessfulAuth();
     } catch (err: any) {
       setError(err.message || "An error occurred during login");
       throw err;
@@ -213,6 +232,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         showAuthModal,
         setShowAuthModal,
         requireAuth,
+        handleUnauthorizedAccess,
+        handleSuccessfulAuth,
       }}
     >
       {children}
