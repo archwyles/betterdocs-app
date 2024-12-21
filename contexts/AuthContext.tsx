@@ -5,6 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter, usePathname } from "next/navigation";
 import { User } from "@/lib/types";
 import { Session } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
@@ -41,25 +42,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Initialize Supabase client with SSR
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   // Fetch additional user data from your users table
   const fetchUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", userId)
-      .single();
+    try {
+      console.log("[fetchUserData] Starting fetch for userId:", userId);
 
-    if (error) {
-      console.error("Error fetching user data:", error);
-      return null;
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) {
+        console.error("[fetchUserData] Supabase error:", {
+          message: error.message,
+          details: error.details,
+          code: error.code,
+        });
+        return null;
+      }
+
+      if (!data) {
+        console.log("[fetchUserData] No data returned for userId:", userId);
+        return null;
+      }
+
+      console.log("[fetchUserData] Success - data:", data);
+      return data as User;
+    } catch (err) {
+      console.error("[fetchUserData] Critical error:", err);
+      throw err; // Let the error propagate to see if it's being caught somewhere
     }
-
-    return data as User;
   };
 
   // Initialize auth state
