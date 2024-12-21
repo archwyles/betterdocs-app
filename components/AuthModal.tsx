@@ -15,6 +15,10 @@ interface AuthModalProps {
   requireAuth?: boolean;
 }
 
+interface AuthError extends Error {
+  message: string;
+}
+
 export default function AuthModal({
   isOpen,
   onClose,
@@ -58,13 +62,14 @@ export default function AuthModal({
       await signup(email, password, fullName.trim());
       handleSuccessfulAuth();
       setShowAuthModal(false);
-    } catch (err: any) {
-      if (err.message.includes("User already registered")) {
+    } catch (err) {
+      const error = err as AuthError;
+      if (error.message.includes("User already registered")) {
         setError(
           "This email is already registered. Please try logging in instead."
         );
       } else {
-        setError(err.message || "An error occurred during signup");
+        setError(error.message || "An error occurred during signup");
       }
     } finally {
       setLoading(false);
@@ -86,11 +91,12 @@ export default function AuthModal({
       handleSuccessfulAuth();
       onClose();
       setShowAuthModal(false);
-    } catch (err: any) {
-      if (err.message.includes("Invalid login credentials")) {
+    } catch (err) {
+      const error = err as AuthError;
+      if (error.message.includes("Invalid login credentials")) {
         setError("Invalid email or password");
       } else {
-        setError(err.message || "An error occurred during login");
+        setError(error.message || "An error occurred during login");
       }
     } finally {
       setLoading(false);

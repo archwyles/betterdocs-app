@@ -1,13 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, CheckCircle, Circle, ChevronRight, Info } from "lucide-react";
+import { Lock, CheckCircle, Circle } from "lucide-react";
 import * as d3 from "d3";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +22,7 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 1000, height: 800 });
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  // const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
 
   const nodeWidth = 200;
   const nodeHeight = 100;
@@ -37,15 +31,15 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
   // Calculate node positions in a tree layout
   const calculateTreeLayout = () => {
     const treeLayout = d3
-      .tree()
+      .tree<{ id: string }>()
       .nodeSize([nodeWidth + 20, nodeHeight + levelGap]);
 
     const root = d3
-      .stratify()
-      .id((d: any) => d.id)
-      .parentId(
-        (d: any) => skillTree.edges.find((e) => e.target === d.id)?.source
-      )(skillTree.nodes);
+      .stratify<{ id: string }>()
+      .id((d) => d.id)
+      .parentId((d) => skillTree.edges.find((e) => e.target === d.id)?.source)(
+      skillTree.nodes
+    );
 
     return treeLayout(root);
   };
@@ -61,32 +55,32 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
     const treeData = calculateTreeLayout();
 
     // Draw links
-    const links = g
-      .select(".links")
-      .selectAll("path")
-      .data(treeData.links())
-      .join("path")
-      .attr(
-        "d",
-        d3
-          .linkVertical<
-            d3.HierarchyPointLink<unknown>,
-            d3.HierarchyPointNode<unknown>
-          >()
-          .x((d) => d.x)
-          .y((d) => d.y)
-      )
-      .attr("stroke", "#94a3b8")
-      .attr("stroke-width", 2)
-      .attr("fill", "none");
+    // const links = g
+    //   .select(".links")
+    //   .selectAll("path")
+    //   .data(treeData.links())
+    //   .join("path")
+    //   .attr(
+    //     "d",
+    //     d3
+    //       .linkVertical<
+    //         d3.HierarchyPointLink<{ id: string }>,
+    //         d3.HierarchyPointNode<{ id: string }>
+    //       >()
+    //       .x((d) => d.x)
+    //       .y((d) => d.y)
+    //   )
+    //   .attr("stroke", "#94a3b8")
+    //   .attr("stroke-width", 2)
+    //   .attr("fill", "none");
 
     // Draw nodes
-    const nodes = g
-      .select(".nodes")
-      .selectAll("g")
-      .data(treeData.descendants())
-      .join("g")
-      .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+    // const nodes = g
+    //   .select(".nodes")
+    //   .selectAll("g")
+    //   .data(treeData.descendants())
+    //   .join("g")
+    //   .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
 
     // Update zoom behavior
     const zoom = d3
@@ -94,11 +88,11 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
       .scaleExtent([0.5, 2])
       .on("zoom", (event: any) => {
         g.attr("transform", event.transform);
-        setTransform({
-          x: event.transform.x,
-          y: event.transform.y,
-          scale: event.transform.k,
-        });
+        // setTransform({
+        //   x: event.transform.x,
+        //   y: event.transform.y,
+        //   scale: event.transform.k,
+        // });
       });
 
     svg.call(zoom as any);

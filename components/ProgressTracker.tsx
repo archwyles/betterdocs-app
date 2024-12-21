@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Trophy, Star, Target, Award } from "lucide-react";
+import { Trophy, Star, Award } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
   Card,

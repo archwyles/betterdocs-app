@@ -7,7 +7,6 @@ import axios from "axios";
 import { ChevronDown, Loader2, Trophy, BookOpen, Target } from "lucide-react";
 import {
   ResponseType,
-  PrimaryDoc,
   KeyConcept,
   Connection,
   DifficultyLevel,
@@ -104,8 +103,6 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<
     "docs" | "progress" | "skill-tree"
   >("docs");
-  const [difficultyFilter, setDifficultyFilter] =
-    useState<DifficultyLevel | null>(null);
   const [sortedPrompts] = useState(shuffledExamplePrompts);
   const [mounted, setMounted] = useState(false);
 
@@ -113,15 +110,6 @@ export default function Home() {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -20, transition: { duration: 0.2 } },
-  };
-
-  const staggerChildren = {
-    animate: {
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
   };
 
   const categoryColors = {
@@ -147,13 +135,18 @@ export default function Home() {
     default: "#6b7280", // Gray
   };
 
-  const selectExamplePrompt = async (e: any, query: string) => {
+  const selectExamplePrompt = async (
+    e: React.MouseEvent<HTMLDivElement>,
+    query: string
+  ) => {
     e.preventDefault();
     setSearchQuery(query);
-    await handleSearch({ preventDefault: () => {} });
+    await handleSearch(e as unknown as React.FormEvent<HTMLFormElement>);
   };
 
-  const handleSearch = async (e: any) => {
+  const handleSearch = async (
+    e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
 
@@ -273,9 +266,18 @@ export default function Home() {
                     placeholder="Search again..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch(e)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      handleSearch(
+                        e as unknown as React.FormEvent<HTMLFormElement>
+                      )
+                    }
                   />
-                  <Button size="sm" onClick={handleSearch} disabled={loading}>
+                  <Button
+                    size="sm"
+                    onClick={(e) => handleSearch(e)}
+                    disabled={loading}
+                  >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -352,7 +354,12 @@ export default function Home() {
                     className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="What are you stuck on?"
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch(e)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      handleSearch(
+                        e as unknown as React.FormEvent<HTMLFormElement>
+                      )
+                    }
                     value={searchQuery}
                   />
                   <Button

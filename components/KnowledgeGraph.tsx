@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, ZoomIn, ZoomOut, Maximize2, Book, Target } from "lucide-react";
+import { Search, ZoomIn, ZoomOut, Maximize2, Book } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -14,7 +14,6 @@ import dynamic from "next/dynamic";
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
 });
-import * as d3 from "d3";
 
 import {
   Category,
@@ -52,24 +51,27 @@ interface GraphData {
 }
 
 const KnowledgeGraph = ({ data }: { data: GraphData }) => {
-  if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.links)) {
-    console.error("Invalid graph data provided");
-    return <div>Error: Invalid graph data</div>;
-  }
-
   const graphRef = useRef<any>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightNodes, setHighlightNodes] = useState(new Set<string>());
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-
-  // Add node label container ref
-  const labelRef = useRef<HTMLDivElement>(null);
+  const [isValidData, setIsValidData] = useState(true);
 
   useEffect(() => {
-    console.log(data);
+    if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.links)) {
+      console.error("Invalid graph data provided");
+      setIsValidData(false);
+      return;
+    }
+    setIsValidData(true);
   }, [data]);
+
+  if (!isValidData) {
+    return <div>Error: Invalid graph data</div>;
+  }
 
   useEffect(() => {
     if (graphRef.current && data.nodes.length > 0) {
