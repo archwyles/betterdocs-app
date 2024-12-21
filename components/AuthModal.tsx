@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ export default function AuthModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { signup, login } = useAuth();
+  const { signup, login, handleSuccessfulAuth, setShowAuthModal } = useAuth();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +56,8 @@ export default function AuthModal({
     try {
       setLoading(true);
       await signup(email, password, fullName.trim());
-      onClose();
+      handleSuccessfulAuth();
+      setShowAuthModal(false);
     } catch (err: any) {
       if (err.message.includes("User already registered")) {
         setError(
@@ -82,7 +83,9 @@ export default function AuthModal({
     try {
       setLoading(true);
       await login(email, password);
+      handleSuccessfulAuth();
       onClose();
+      setShowAuthModal(false);
     } catch (err: any) {
       if (err.message.includes("Invalid login credentials")) {
         setError("Invalid email or password");
@@ -94,11 +97,16 @@ export default function AuthModal({
     }
   };
 
-  const handleClose = () => {
-    if (!requireAuth) {
-      onClose();
+  useEffect(() => {
+    if (!isOpen) {
+      setError("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setFullName("");
+      setLoading(false);
     }
-  };
+  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -109,7 +117,6 @@ export default function AuthModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={handleClose}
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -126,7 +133,7 @@ export default function AuthModal({
               <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
                 {requireAuth
                   ? "Please log in or sign up to continue."
-                  : "Your journey to becoming a better developer starts here."}
+                  : "fight back against ai making you stupid"}
               </p>
 
               <Tabs defaultValue="login" className="w-full">
@@ -249,17 +256,6 @@ export default function AuthModal({
                   </form>
                 </TabsContent>
               </Tabs>
-
-              {!requireAuth && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClose}
-                  className="absolute top-2 right-2"
-                >
-                  ✕
-                </Button>
-              )}
             </div>
           </motion.div>
         </div>

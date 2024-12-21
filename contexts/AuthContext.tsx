@@ -62,59 +62,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data as User;
   };
 
-  // Handle route protection
+  // Initialize auth state
   useEffect(() => {
-    if (loading) return;
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const {
+          data: { session: initialSession },
+        } = await supabase.auth.getSession();
 
-    const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
-    const isAuthRoute = AUTH_ROUTES.includes(pathname);
-    const hasValidSession = !!session && !!user;
+        if (initialSession?.user) {
+          const userData = await fetchUserData(initialSession.user.id);
+          if (userData) {
+            setUser(userData);
+            setSession(initialSession);
+            setShowAuthModal(false);
+            setRequireAuth(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    if (!hasValidSession && !isPublicRoute) {
-      setRequireAuth(true);
-      setShowAuthModal(true);
-    } else if (hasValidSession && isAuthRoute) {
-      router.push("/");
-      setShowAuthModal(false);
-      setRequireAuth(false);
-    } else {
-      setRequireAuth(false);
-    }
-  }, [session, loading, pathname, user]);
+    initializeAuth();
+  }, []);
 
   // Handle auth state changes
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
+      console.log("Auth state change:", event, currentSession); // Debug log
 
-      if (currentSession?.user) {
-        const userData = await fetchUserData(currentSession.user.id);
-        if (userData) {
-          setUser(userData);
-          setShowAuthModal(false);
-          setRequireAuth(false);
-        } else {
-          // If we can't fetch user data, log them out
-          await supabase.auth.signOut();
+      try {
+        setLoading(true); // Set loading at the start of state change
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          if (currentSession) {
+            const userData = await fetchUserData(currentSession.user.id);
+            if (userData) {
+              setUser(userData);
+              setSession(currentSession);
+              setShowAuthModal(false);
+              setRequireAuth(false);
+              setLoading(false); // Clear loading after successful auth
+              return;
+            }
+          }
+        }
+
+        if (event === "SIGNED_OUT") {
           setUser(null);
           setSession(null);
           setShowAuthModal(true);
           setRequireAuth(true);
+          setLoading(false); // Clear loading after sign out
+          return;
         }
-      } else {
+      } catch (error) {
+        console.error("Auth state change error:", error);
         setUser(null);
-        if (!PUBLIC_ROUTES.includes(pathname)) {
-          setShowAuthModal(true);
-          setRequireAuth(true);
-        }
+        setSession(null);
+        setLoading(false); // Clear loading on error
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [pathname]);
+  }, []);
 
   const refreshUser = async () => {
     try {
@@ -160,7 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) throw signInError;
-      handleSuccessfulAuth();
+
+      // The auth state change handler will handle setting the user
     } catch (err: any) {
       setError(err.message || "An error occurred during login");
       throw err;
@@ -173,22 +190,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
 
-      // Sign up with Supabase Auth
-      const {
-        data: { user: authUser },
-        error: signUpError,
-      } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (signUpError) throw signUpError;
-      if (!authUser) throw new Error("No user returned after signup");
+      if (!data.user) throw new Error("No user returned after signup");
 
       // Create user record in your users table
       const { error: userError } = await supabase.from("users").insert([
         {
-          id: authUser.id,
+          id: data.user.id,
           email,
           name,
           status: "user",
@@ -198,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (userError) throw userError;
 
-      router.push("/");
+      // The auth state change handler will handle setting the user
     } catch (err: any) {
       setError(err.message || "An error occurred during signup");
       throw err;
@@ -213,6 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setSession(null);
       setShowAuthModal(true);
+      setRequireAuth(true);
     } catch (err) {
       console.error("Logout error:", err);
     }

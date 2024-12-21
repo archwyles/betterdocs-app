@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import axios from "axios";
@@ -92,14 +93,21 @@ export default function Home() {
     nodes: [],
     links: [],
   });
-  const { showAuthModal, setShowAuthModal, requireAuth, logout, user } =
-    useAuth();
+  const {
+    showAuthModal,
+    setShowAuthModal,
+    requireAuth,
+    logout,
+    user,
+    handleUnauthorizedAccess,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<
     "docs" | "progress" | "skill-tree"
   >("docs");
   const [difficultyFilter, setDifficultyFilter] =
     useState<DifficultyLevel | null>(null);
   const [sortedPrompts] = useState(shuffledExamplePrompts);
+  const [mounted, setMounted] = useState(false);
 
   const fadeIn = {
     initial: { opacity: 0, y: 20 },
@@ -149,58 +157,88 @@ export default function Home() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
 
-    setLoading(true);
-    setError("");
+    const performSearch = async () => {
+      setLoading(true);
+      setError("");
 
-    try {
-      const res = await axios.post("/api/handle-search", {
-        query: searchQuery,
-      });
+      try {
+        const res = await axios.post("/api/handle-search", {
+          query: searchQuery,
+        });
 
-      if (!res.data?.response) {
-        throw new Error("Invalid response format from server");
+        if (!res.data?.response) {
+          throw new Error("Invalid response format from server");
+        }
+
+        setResponse(res.data.response);
+
+        if (res.data.response.key_concepts) {
+          const nodes = res.data.response.key_concepts.map(
+            (concept: KeyConcept) => ({
+              id: concept.id,
+              name: concept.name,
+              category: concept.category || "default",
+              docs: concept.docs,
+              mastery_levels: concept.mastery_levels,
+              value: 1,
+            })
+          );
+
+          const links = res.data.response.key_concepts.flatMap(
+            (concept: KeyConcept) =>
+              (concept.connections ?? []).map((connection: Connection) => ({
+                source: concept.id,
+                target: connection.target,
+                weight: connection.strength * 5,
+                relationship: connection.relationship_type,
+              }))
+          );
+
+          setGraphData({ nodes, links });
+        }
+      } catch (error: any) {
+        setError(error.message || "An error occurred while fetching results");
+        if (error.response?.status === 401) {
+          handleUnauthorizedAccess();
+        }
+        console.error(error);
+        setResponse(null);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setResponse(res.data.response);
-
-      if (res.data.response.key_concepts) {
-        const nodes = res.data.response.key_concepts.map(
-          (concept: KeyConcept) => ({
-            id: concept.id,
-            name: concept.name,
-            category: concept.category || "default",
-            docs: concept.docs,
-            mastery_levels: concept.mastery_levels,
-            value: 1,
-          })
-        );
-
-        const links = res.data.response.key_concepts.flatMap(
-          (concept: KeyConcept) =>
-            (concept.connections ?? []).map((connection: Connection) => ({
-              source: concept.id,
-              target: connection.target,
-              weight: connection.strength * 5,
-              relationship: connection.relationship_type,
-            }))
-        );
-
-        setGraphData({ nodes, links });
-      }
-    } catch (error: any) {
-      setError(error.message || "An error occurred while fetching results");
-      console.error(error);
-      setResponse(null);
-    } finally {
-      setLoading(false);
+    if (!user) {
+      handleUnauthorizedAccess(performSearch);
+      return;
     }
+
+    await performSearch();
   };
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setShowAuthModal(true);
+    }
+  }, [user, setShowAuthModal]);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => {
+          if (!requireAuth) {
+            setShowAuthModal(false);
+          }
+        }}
         requireAuth={requireAuth}
       />
 
@@ -248,31 +286,47 @@ export default function Home() {
               )}
             </AnimatePresence>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  {user?.name || "Menu"}{" "}
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={logout}>Logout</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {mounted && (
+              <>
+                {user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        {user.name} <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={logout}>
+                        Logout
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAuthModal(true)}
+                  >
+                    Login
+                  </Button>
+                )}
+              </>
+            )}
 
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
-              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+              {mounted &&
+                (theme === "dark" ? <Sun size={20} /> : <Moon size={20} />)}
             </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 pt-24">
-        {/* Hero Section with Search (only shown before first search) */}
+        {/* Hero Section with Search */}
         <AnimatePresence>
           {!response && (
             <motion.section
@@ -340,7 +394,7 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Enhanced Results Section */}
+        {/* Results Section */}
         <AnimatePresence mode="wait">
           {response && !loading && (
             <section className="mb-16">
