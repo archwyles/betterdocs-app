@@ -5,12 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import axios from "axios";
 import { ChevronDown, Loader2, Trophy, BookOpen, Target } from "lucide-react";
-import {
-  ResponseType,
-  KeyConcept,
-  Connection,
-  DifficultyLevel,
-} from "@/lib/types";
+import { ResponseType, KeyConcept, Connection } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
@@ -189,10 +184,18 @@ export default function Home() {
 
           setGraphData({ nodes, links });
         }
-      } catch (error: any) {
-        setError(error.message || "An error occurred while fetching results");
-        if (error.response?.status === 401) {
-          handleUnauthorizedAccess();
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+          setError(
+            error.response?.data?.message ||
+              error.message ||
+              "An error occurred while fetching results"
+          );
+          if (error.response?.status === 401) {
+            handleUnauthorizedAccess();
+          }
+        } else {
+          setError("An unexpected error occurred");
         }
         console.error(error);
         setResponse(null);
@@ -468,7 +471,9 @@ export default function Home() {
               {/* Main Content Tabs */}
               <Tabs
                 value={activeTab}
-                onValueChange={(value: any) => setActiveTab(value)}
+                onValueChange={(value: string) =>
+                  setActiveTab(value as "docs" | "progress" | "skill-tree")
+                }
               >
                 <TabsList className="mb-6">
                   <TabsTrigger value="docs" className="flex items-center gap-2">

@@ -210,7 +210,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     return `${baseColor}${opacity}`;
   };
 
-  // Enhanced node rendering with persistent labels
+  // Enhanced node rendering with highlights
   const renderNodeCanvas = (
     node: GraphNode,
     ctx: CanvasRenderingContext2D,
@@ -223,14 +223,29 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     const backgroundHeight = 24 / globalScale;
     const backgroundWidth = textWidth + 8 / globalScale;
 
+    // Determine if node is highlighted
+    const isHighlighted = searchTerm ? highlightNodes.has(node.id) : true;
+    const nodeColor = categoryColors[node.category] || categoryColors.default;
+
+    // Apply highlight/fade effect
+    const finalColor = isHighlighted ? nodeColor : `${nodeColor}40`; // 40 = 25% opacity
+
     // Node circle
     ctx.beginPath();
-    ctx.fillStyle = categoryColors[node.category] || categoryColors.default;
-    ctx.arc(node.x || 0, node.y || 0, 5 / globalScale, 0, 2 * Math.PI);
+    ctx.fillStyle = finalColor;
+    ctx.arc(
+      node.x || 0,
+      node.y || 0,
+      isHighlighted ? 6 / globalScale : 5 / globalScale, // Larger for highlighted
+      0,
+      2 * Math.PI
+    );
     ctx.fill();
 
-    // Label background
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    // Label background with adjusted opacity
+    ctx.fillStyle = isHighlighted
+      ? "rgba(255, 255, 255, 0.8)"
+      : "rgba(255, 255, 255, 0.4)";
     ctx.fillRect(
       (node.x || 0) - backgroundWidth / 2,
       (node.y || 0) + 8 / globalScale,
@@ -238,10 +253,10 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
       backgroundHeight
     );
 
-    // Label text
+    // Label text with adjusted opacity
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = categoryColors[node.category] || categoryColors.default;
+    ctx.fillStyle = finalColor;
     ctx.fillText(
       label,
       node.x || 0,
@@ -265,7 +280,6 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
         : link.target
     ) as GraphNode;
 
-    // Early return if any coordinates are undefined
     if (!start?.x || !start?.y || !end?.x || !end?.y) return;
 
     const style = relationshipStyles[link.relationship_type] || {
@@ -273,9 +287,14 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
       dashArray: [],
     };
 
+    // Determine if link should be highlighted
+    const isHighlighted = searchTerm
+      ? highlightNodes.has(start.id) && highlightNodes.has(end.id)
+      : true;
+
     ctx.beginPath();
-    ctx.strokeStyle = style.color;
-    ctx.lineWidth = Math.sqrt(link.weight);
+    ctx.strokeStyle = isHighlighted ? style.color : `${style.color}40`; // 40 = 25% opacity
+    ctx.lineWidth = Math.sqrt(link.weight) * (isHighlighted ? 1 : 0.5);
 
     if (style.dashArray.length > 0) {
       ctx.setLineDash(style.dashArray);
