@@ -50,17 +50,8 @@ interface GraphData {
   links: GraphLink[];
 }
 
-interface ForceGraphInstance {
-  d3Force: (type: string) => any;
-  zoom: (value: number) => void;
-  centerAt: (x: number, y: number, ms: number) => void;
-  zoomToFit: (ms: number, padding: number) => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
-}
-
 const KnowledgeGraph = ({ data }: { data: GraphData }) => {
-  const graphRef = useRef<ForceGraphInstance | null>(null);
+  const graphRef = useRef<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightNodes, setHighlightNodes] = useState(new Set<string>());
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
@@ -75,13 +66,19 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
       return;
     }
     setIsValidData(true);
+  }, [data]);
 
+  if (!isValidData) {
+    return <div>Error: Invalid graph data</div>;
+  }
+
+  useEffect(() => {
     if (graphRef.current && data.nodes.length > 0) {
       // Initial zoom and center
       graphRef.current.zoom(0.8);
       graphRef.current.centerAt(0, 0, 1000);
     }
-  }, [data]);
+  }, [data.nodes]);
 
   // Enhanced color scheme with opacity variations for mastery levels
   const categoryColors: { [key in Category | "default"]: string } = {
@@ -188,6 +185,29 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     }
     setHighlightNodes(matchedNodes);
   }, [searchTerm, data.nodes]);
+
+  const getMasteryColor = (node: GraphNode) => {
+    if (!node?.category) return categoryColors.default || "#6b7280";
+    const baseColor = categoryColors[node.category] || categoryColors.default;
+    if (!node.current_mastery) return baseColor;
+
+    const opacity = (() => {
+      switch (node.current_mastery) {
+        case "beginner":
+          return "40";
+        case "intermediate":
+          return "70";
+        case "advanced":
+          return "90";
+        case "expert":
+          return "100";
+        default:
+          return "40";
+      }
+    })();
+
+    return `${baseColor}${opacity}`;
+  };
 
   // Enhanced node rendering with highlights and hover effects
   const renderNodeCanvas = (
@@ -315,10 +335,6 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     ctx.setLineDash([]);
   };
 
-  if (!isValidData) {
-    return <div>Error: Invalid graph data</div>;
-  }
-
   return (
     <div
       id="graph-container"
@@ -356,7 +372,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
             size="icon"
             onClick={() => {
               graphRef.current?.centerAt(0, 0, 1000);
-              graphRef.current?.zoom(0.8);
+              graphRef.current?.zoom(0.8, 1000);
             }}
           >
             <Maximize2 className="w-4 h-4" />
@@ -450,7 +466,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
 
       {/* Force Graph */}
       <ForceGraph2D
-        ref={graphRef as any}
+        ref={graphRef}
         graphData={data}
         width={dimensions.width || 800}
         height={dimensions.height || 600}
@@ -467,17 +483,15 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
         ) => renderLinkCanvas(link as GraphLink, ctx, globalScale)}
         nodeLabel={(node: any) => (node as GraphNode)?.name || "Unnamed Node"}
         backgroundColor="transparent"
-        onNodeClick={(node: any, event: MouseEvent) =>
+        onNodeClick={(node: any) =>
           setSelectedNode(
             selectedNode?.id === (node as GraphNode)?.id
               ? null
               : (node as GraphNode)
           )
         }
-        onNodeHover={(node: any, prev: any) =>
-          setHoveredNode(node as GraphNode | null)
-        }
-        onNodeDragEnd={(node: any, translate: any) => {
+        onNodeHover={(node: any) => setHoveredNode(node as GraphNode | null)}
+        onNodeDragEnd={(node: any) => {
           const typedNode = node as GraphNode;
           if (typedNode?.x != null && typedNode?.y != null) {
             typedNode.fx = typedNode.x;
@@ -487,6 +501,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
         d3VelocityDecay={0.3}
         d3AlphaDecay={0.02}
         d3AlphaMin={0.001}
+        // centerAt={[0, 0]}
         minZoom={0.5}
         maxZoom={5}
         cooldownTicks={100}
