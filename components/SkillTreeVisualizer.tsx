@@ -18,11 +18,16 @@ interface Props {
   progressData: ProgressTracking;
 }
 
+interface TreeNode {
+  id: string;
+  x: number;
+  y: number;
+}
+
 const SkillTreeView = ({ skillTree, progressData }: Props) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 1000, height: 800 });
-  // const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
 
   const nodeWidth = 200;
   const nodeHeight = 100;
@@ -51,58 +56,22 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
     const svg = d3.select(svgRef.current);
     const g = svg.select(".zoom-group");
 
-    // Calculate tree layout
-    const treeData = calculateTreeLayout();
-
-    // Draw links
-    // const links = g
-    //   .select(".links")
-    //   .selectAll("path")
-    //   .data(treeData.links())
-    //   .join("path")
-    //   .attr(
-    //     "d",
-    //     d3
-    //       .linkVertical<
-    //         d3.HierarchyPointLink<{ id: string }>,
-    //         d3.HierarchyPointNode<{ id: string }>
-    //       >()
-    //       .x((d) => d.x)
-    //       .y((d) => d.y)
-    //   )
-    //   .attr("stroke", "#94a3b8")
-    //   .attr("stroke-width", 2)
-    //   .attr("fill", "none");
-
-    // Draw nodes
-    // const nodes = g
-    //   .select(".nodes")
-    //   .selectAll("g")
-    //   .data(treeData.descendants())
-    //   .join("g")
-    //   .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-
     // Update zoom behavior
     const zoom = d3
-      .zoom()
+      .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 2])
-      .on("zoom", (event: any) => {
-        g.attr("transform", event.transform);
-        // setTransform({
-        //   x: event.transform.x,
-        //   y: event.transform.y,
-        //   scale: event.transform.k,
-        // });
+      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+        g.attr("transform", event.transform.toString());
       });
 
-    svg.call(zoom as any);
+    svg.call(zoom);
 
     // Initial centering
     const initialTransform = d3.zoomIdentity
       .translate(dimensions.width / 2, 100)
       .scale(0.8);
-    svg.call(zoom.transform as any, initialTransform);
-  }, [skillTree, dimensions]);
+    svg.call(zoom.transform, initialTransform);
+  }, [skillTree, dimensions, calculateTreeLayout]);
 
   // Handle window resize
   useEffect(() => {
@@ -139,7 +108,7 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
     return skillLevel.current_level === "expert" ? "completed" : "in-progress";
   };
 
-  const renderNode = (node: any) => {
+  const renderNode = (node: TreeNode) => {
     const status = getNodeStatus(node.id);
     const skillLevel = progressData.skill_levels[node.id];
     const nodeData = skillTree.nodes.find((n) => n.id === node.id);
@@ -254,7 +223,11 @@ const SkillTreeView = ({ skillTree, progressData }: Props) => {
       >
         <g className="zoom-group">
           <g className="links" />
-          <g className="nodes" />
+          <g className="nodes">
+            {calculateTreeLayout()
+              .descendants()
+              .map((node) => renderNode(node as TreeNode))}
+          </g>
         </g>
       </svg>
 

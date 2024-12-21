@@ -50,9 +50,17 @@ interface GraphData {
   links: GraphLink[];
 }
 
+interface ForceGraphInstance {
+  d3Force: (type: string) => any;
+  zoom: (value: number) => void;
+  centerAt: (x: number, y: number, ms: number) => void;
+  zoomToFit: (ms: number, padding: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+}
+
 const KnowledgeGraph = ({ data }: { data: GraphData }) => {
-  const graphRef = useRef<any>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
+  const graphRef = useRef<ForceGraphInstance | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightNodes, setHighlightNodes] = useState(new Set<string>());
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
@@ -67,19 +75,13 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
       return;
     }
     setIsValidData(true);
-  }, [data]);
 
-  if (!isValidData) {
-    return <div>Error: Invalid graph data</div>;
-  }
-
-  useEffect(() => {
     if (graphRef.current && data.nodes.length > 0) {
       // Initial zoom and center
       graphRef.current.zoom(0.8);
       graphRef.current.centerAt(0, 0, 1000);
     }
-  }, [data.nodes]);
+  }, [data]);
 
   // Enhanced color scheme with opacity variations for mastery levels
   const categoryColors: { [key in Category | "default"]: string } = {
@@ -187,30 +189,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     setHighlightNodes(matchedNodes);
   }, [searchTerm, data.nodes]);
 
-  const getMasteryColor = (node: GraphNode) => {
-    if (!node?.category) return categoryColors.default || "#6b7280";
-    const baseColor = categoryColors[node.category] || categoryColors.default;
-    if (!node.current_mastery) return baseColor;
-
-    const opacity = (() => {
-      switch (node.current_mastery) {
-        case "beginner":
-          return "40";
-        case "intermediate":
-          return "70";
-        case "advanced":
-          return "90";
-        case "expert":
-          return "100";
-        default:
-          return "40";
-      }
-    })();
-
-    return `${baseColor}${opacity}`;
-  };
-
-  // Enhanced node rendering with highlights
+  // Enhanced node rendering with highlights and hover effects
   const renderNodeCanvas = (
     node: GraphNode,
     ctx: CanvasRenderingContext2D,
@@ -225,25 +204,46 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
 
     // Determine if node is highlighted
     const isHighlighted = searchTerm ? highlightNodes.has(node.id) : true;
+    const isHovered = hoveredNode?.id === node.id;
     const nodeColor = categoryColors[node.category] || categoryColors.default;
 
-    // Apply highlight/fade effect
-    const finalColor = isHighlighted ? nodeColor : `${nodeColor}40`; // 40 = 25% opacity
+    // Apply highlight/fade/hover effect
+    const finalColor = isHighlighted
+      ? isHovered
+        ? `${nodeColor}FF` // Full opacity for hover
+        : nodeColor
+      : `${nodeColor}40`; // 40 = 25% opacity
 
-    // Node circle
+    // Node circle with hover effect
     ctx.beginPath();
     ctx.fillStyle = finalColor;
-    ctx.arc(
-      node.x || 0,
-      node.y || 0,
-      isHighlighted ? 6 / globalScale : 5 / globalScale, // Larger for highlighted
-      0,
-      2 * Math.PI
-    );
+    const nodeSize = isHovered
+      ? 8 / globalScale
+      : isHighlighted
+      ? 6 / globalScale
+      : 5 / globalScale;
+    ctx.arc(node.x || 0, node.y || 0, nodeSize, 0, 2 * Math.PI);
     ctx.fill();
 
+    // Hover ring
+    if (isHovered) {
+      ctx.beginPath();
+      ctx.strokeStyle = finalColor;
+      ctx.lineWidth = 1 / globalScale;
+      ctx.arc(
+        node.x || 0,
+        node.y || 0,
+        nodeSize + 2 / globalScale,
+        0,
+        2 * Math.PI
+      );
+      ctx.stroke();
+    }
+
     // Label background with adjusted opacity
-    ctx.fillStyle = isHighlighted
+    ctx.fillStyle = isHovered
+      ? "rgba(255, 255, 255, 0.95)"
+      : isHighlighted
       ? "rgba(255, 255, 255, 0.8)"
       : "rgba(255, 255, 255, 0.4)";
     ctx.fillRect(
@@ -291,10 +291,17 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     const isHighlighted = searchTerm
       ? highlightNodes.has(start.id) && highlightNodes.has(end.id)
       : true;
+    const isHovered =
+      hoveredNode && (start.id === hoveredNode.id || end.id === hoveredNode.id);
 
     ctx.beginPath();
-    ctx.strokeStyle = isHighlighted ? style.color : `${style.color}40`; // 40 = 25% opacity
-    ctx.lineWidth = Math.sqrt(link.weight) * (isHighlighted ? 1 : 0.5);
+    ctx.strokeStyle = isHovered
+      ? style.color
+      : isHighlighted
+      ? style.color
+      : `${style.color}40`; // 40 = 25% opacity
+    ctx.lineWidth =
+      Math.sqrt(link.weight) * (isHovered ? 2 : isHighlighted ? 1 : 0.5);
 
     if (style.dashArray.length > 0) {
       ctx.setLineDash(style.dashArray);
@@ -307,6 +314,10 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
     ctx.stroke();
     ctx.setLineDash([]);
   };
+
+  if (!isValidData) {
+    return <div>Error: Invalid graph data</div>;
+  }
 
   return (
     <div
@@ -345,7 +356,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
             size="icon"
             onClick={() => {
               graphRef.current?.centerAt(0, 0, 1000);
-              graphRef.current?.zoom(0.8, 1000);
+              graphRef.current?.zoom(0.8);
             }}
           >
             <Maximize2 className="w-4 h-4" />
@@ -439,7 +450,7 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
 
       {/* Force Graph */}
       <ForceGraph2D
-        ref={graphRef}
+        ref={graphRef as any}
         graphData={data}
         width={dimensions.width || 800}
         height={dimensions.height || 600}
@@ -456,15 +467,17 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
         ) => renderLinkCanvas(link as GraphLink, ctx, globalScale)}
         nodeLabel={(node: any) => (node as GraphNode)?.name || "Unnamed Node"}
         backgroundColor="transparent"
-        onNodeClick={(node: any) =>
+        onNodeClick={(node: any, event: MouseEvent) =>
           setSelectedNode(
             selectedNode?.id === (node as GraphNode)?.id
               ? null
               : (node as GraphNode)
           )
         }
-        onNodeHover={(node: any) => setHoveredNode(node as GraphNode | null)}
-        onNodeDragEnd={(node: any) => {
+        onNodeHover={(node: any, prev: any) =>
+          setHoveredNode(node as GraphNode | null)
+        }
+        onNodeDragEnd={(node: any, translate: any) => {
           const typedNode = node as GraphNode;
           if (typedNode?.x != null && typedNode?.y != null) {
             typedNode.fx = typedNode.x;
@@ -474,7 +487,6 @@ const KnowledgeGraph = ({ data }: { data: GraphData }) => {
         d3VelocityDecay={0.3}
         d3AlphaDecay={0.02}
         d3AlphaMin={0.001}
-        // centerAt={[0, 0]}
         minZoom={0.5}
         maxZoom={5}
         cooldownTicks={100}
